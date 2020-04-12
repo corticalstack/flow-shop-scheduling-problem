@@ -44,9 +44,10 @@ class GA(Solver):
         self.jobs = jobs
         self.machines = machines
         self.parents = []
-        self.child = []
+        self.children = []
         self.initial_population_size = 5
         self.number_parents = 2
+        self.number_children = 5
         self.current_generation = 1
         self.candidate_id = 0
         self.last_generation = 1000
@@ -61,12 +62,24 @@ class GA(Solver):
 
             # Sort candidate fitness in descending order
             self.candidate_fitness = sorted(self.candidate_fitness, key=itemgetter(1), reverse=True)
+            print('Best is ', self.candidate_fitness[0])
 
-            self.parents = self.mating_selection()
+            self.parents = self.parent_selection()
 
-            self.child = self.crossover()
+            self.children = self.parent_crossover()
 
-            self.mutation()
+            self.children_mutate()
+
+            self.population = self.update_population()
+
+    def update_population(self):
+        new_pop = []
+        for i in range(self.number_parents):
+            new_pop.append(self.population[self.candidate_fitness[i][0]])
+
+        # Add children to population
+        new_pop.extend(self.children)
+        return new_pop
 
     def initialise_population(self):
         pop = []
@@ -95,7 +108,7 @@ class GA(Solver):
 
         return self.machines.assigned_jobs[-1][-1][2]
 
-    def mating_selection(self):
+    def parent_selection(self):
         # Fitness proportionate selection (FPS), assigning probabilities to individuals acting as parents depending on their
         # fitness
         max_fitness = sum(n for _, n in self.candidate_fitness)
@@ -117,24 +130,28 @@ class GA(Solver):
 
         return parents
 
-    def crossover(self):
-        crossover_point = random.randint(1, self.jobs.quantity - 1)
-        child = self.population[self.parents[0]][:crossover_point]
-        for c in self.population[self.parents[1]]:
-            if c not in child:
-                child.append(c)
+    def parent_crossover(self):
+        children = []
+        for i in range(self.number_children):
+            crossover_point = random.randint(1, self.jobs.quantity - 1)
+            child = self.population[self.parents[0]][:crossover_point]
+            for c in self.population[self.parents[1]]:
+                if c not in child:
+                    child.append(c)
+            children.append(child)
 
-        return child
+        return children
 
-    def mutation(self):
+    def children_mutate(self):
         """
         Swap 2 tasks at random
         """
-        # Generate 2 task numbers at random, within range
-        tasks = random.sample(range(0, self.jobs.quantity), 2)
-
         # Swap positions of the 2 job tasks in the candidate
-        self.child[tasks[0]], self.child[tasks[1]] = self.child[tasks[1]], self.child[tasks[0]]
+        for i in range(self.number_children):
+            # Generate 2 task numbers at random, within range
+            tasks = random.sample(range(0, self.jobs.quantity), 2)
+            self.children[i][tasks[0]], self.children[i][tasks[1]] = \
+                self.children[i][tasks[1]], self.children[i][tasks[0]]
 
 
 class Scheduler:
