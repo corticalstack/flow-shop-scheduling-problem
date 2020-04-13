@@ -50,7 +50,9 @@ class GA(Solver):
         self.number_children = 5
         self.current_generation = 1
         self.candidate_id = 0
-        self.last_generation = 1000
+        self.last_generation = 100000
+        self.best = 9999
+        #self.generate_all_permutations()
 
         self.population = self.initialise_population()
 
@@ -61,8 +63,10 @@ class GA(Solver):
                 self.candidate_fitness.append((ci, fitness))
 
             # Sort candidate fitness in descending order
-            self.candidate_fitness = sorted(self.candidate_fitness, key=itemgetter(1), reverse=True)
-            print('Best is ', self.candidate_fitness[0])
+            self.candidate_fitness = sorted(self.candidate_fitness, key=itemgetter(1))
+            if self.candidate_fitness[0][1] < self.best:
+                self.best = self.candidate_fitness[0][1]
+                print('Best is ', self.best)
 
             self.parents = self.parent_selection()
 
@@ -71,6 +75,23 @@ class GA(Solver):
             self.children_mutate()
 
             self.population = self.update_population()
+
+    def generate_all_permutations(self):
+        import itertools
+        candidate = list(range(0, self.jobs.quantity))
+        all_perms = list(itertools.permutations(candidate))
+        print(len(all_perms))
+        best = 999999
+        f_set = set()
+        for p in all_perms:
+            fitness = self.calculate_fitness(p)
+            if fitness < best:
+                print('Current best is {} for candidate {}'.format(fitness, p))
+                best = fitness
+            f_set.add(fitness)
+
+        print(f_set)
+
 
     def update_population(self):
         new_pop = []
@@ -101,10 +122,16 @@ class GA(Solver):
             end_time = 0
             for mi, mt in enumerate(self.jobs.joblist[j]):
                 if self.machines.assigned_jobs[mi]:
-                    start_time = self.machines.assigned_jobs[mi][-1][2] + 1
+                    if mi == 0:
+                        start_time = self.machines.assigned_jobs[mi][-1][2]
+                    else:
+                        curr_job_prev_task_end = self.machines.assigned_jobs[mi][-1][2]
+                        prev_job_task_end = self.machines.assigned_jobs[mi-1][-1][2]
+                        start_time = max(curr_job_prev_task_end, prev_job_task_end)
+
                 end_time = start_time + mt
                 self.machines.assigned_jobs[mi].append((j, start_time, end_time))
-                start_time = end_time + 1
+                start_time = end_time
 
         return self.machines.assigned_jobs[-1][-1][2]
 
