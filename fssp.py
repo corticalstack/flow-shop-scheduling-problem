@@ -11,6 +11,7 @@ script_name = os.path.basename(sys.argv[0]).split('.')
 import random
 import time
 from operator import itemgetter
+import itertools
 
 
 class Jobs:
@@ -34,83 +35,23 @@ class Machines:
 
 
 class Solver:
-    def __init__(self):
-        self.something = 0
-
-
-class GA(Solver):
     def __init__(self, jobs, machines):
-        Solver.__init__(self)
+        self.budget = 100000
         self.jobs = jobs
         self.machines = machines
-        self.parents = []
-        self.children = []
-        self.initial_population_size = 5
-        self.number_parents = 2
-        self.number_children = 5
-        self.current_generation = 1
-        self.candidate_id = 0
-        self.last_generation = 100000
-        self.best = 9999
-        #self.generate_all_permutations()
+        self.initial_candidate_size = 1
+        self.best_candidate_fitness = 9999
+        self.best_candidate_permutation = []
 
-        self.population = self.initialise_population()
-
-        for i in range(self.last_generation):
-            self.candidate_fitness = []
-            for ci, candidate in enumerate(self.population):
-                fitness = self.calculate_fitness(candidate)
-                self.candidate_fitness.append((ci, fitness))
-
-            # Sort candidate fitness in descending order
-            self.candidate_fitness = sorted(self.candidate_fitness, key=itemgetter(1))
-            if self.candidate_fitness[0][1] < self.best:
-                self.best = self.candidate_fitness[0][1]
-                print('Best is ', self.best)
-
-            self.parents = self.parent_selection()
-
-            self.children = self.parent_crossover()
-
-            self.children_mutate()
-
-            self.population = self.update_population()
-
-    def generate_all_permutations(self):
-        import itertools
+    def initialise_candidates(self):
+        candidates = []
         candidate = list(range(0, self.jobs.quantity))
-        all_perms = list(itertools.permutations(candidate))
-        print(len(all_perms))
-        best = 999999
-        f_set = set()
-        for p in all_perms:
-            fitness = self.calculate_fitness(p)
-            if fitness < best:
-                print('Current best is {} for candidate {}'.format(fitness, p))
-                best = fitness
-            f_set.add(fitness)
-
-        print(f_set)
-
-
-    def update_population(self):
-        new_pop = []
-        for i in range(self.number_parents):
-            new_pop.append(self.population[self.candidate_fitness[i][0]])
-
-        # Add children to population
-        new_pop.extend(self.children)
-        return new_pop
-
-    def initialise_population(self):
-        pop = []
-        candidate = list(range(0, self.jobs.quantity))
-        while len(pop) < self.initial_population_size:
+        while len(candidates) < self.initial_candidate_size:
             np.random.shuffle(candidate)
-            while candidate in pop:
+            while candidate in candidates:
                 np.random.shuffle(candidate)
-            pop.append(candidate.copy())
-        return pop
+            candidates.append(candidate.copy())
+        return candidates
 
     def calculate_fitness(self, candidate):
         self.machines.assigned_jobs = []
@@ -134,6 +75,141 @@ class GA(Solver):
                 start_time = end_time
 
         return self.machines.assigned_jobs[-1][-1][2]
+
+    def brute_force_generate_all_permutations(self):
+        # JP need to add count of solutions with specific fitness value
+        candidate = list(range(0, self.jobs.quantity))
+        all_perms = list(itertools.permutations(candidate))
+        print(len(all_perms))
+        best = 999999
+        f_set = set()
+        for p in all_perms:
+            fitness = self.calculate_fitness(p)
+            if fitness < best:
+                print('Current best is {} for candidate {}'.format(fitness, p))
+                best = fitness
+            f_set.add(fitness)
+
+        print('All possible distinct fitness values ', sorted(f_set))
+
+    # what is diff between idle time and wait time?
+    def show_machine_times(self):
+        fitness = self.calculate_fitness(self.best_candidate_permutation)
+
+        row_format = "{:>15}" * 4
+        print(row_format.format('Machine', 'Start Time', 'Finish Time', 'Idle Time'))
+        # [x[1][1]-(x[0][2]) for x in zip(m, m[1:] + [(0, 0, 0)])]
+        for mi, m in enumerate(self.machines.assigned_jobs):
+            finish_time = m[-1][2]
+            idle_time = sum([x[1][1]-(x[0][2]) for x in zip(m, m[1:] + [(0, m[-1][2], 0)])])
+            print(row_format.format(mi, m[0][1], finish_time, idle_time))
+
+    def show_job_times(self):
+        print('Best permutation is ', self.best_candidate_permutation)
+        print('With fitness value of ', self.best_candidate_fitness)
+        row_format = "{:>15}" * 4
+        print(row_format.format('Job', 'Start Time', 'Finish Time', 'Idle Time'))
+        ### JP - to finish calculating idle time for jobs
+        for j in range(self.jobs.quantity):
+            idle_time = sum([x[1][1] - (x[0][2]) for x in zip(m, m[1:] + [(0, m[-1][2], 0)])])
+            print(row_format.format(self.machines.assigned_jobs[0][j][0], self.machines.assigned_jobs[0][j][1], self.machines.assigned_jobs[-1][j][2], '?'))
+
+    def plot_fitness_trend(self):
+        pass
+
+    def wilcoxon(self):
+        pass
+
+class SA(Solver):
+    def __init__(self, jobs, machines):
+        Solver.__init__(self, jobs, machines)
+        self.cooling_rate = 0.1
+        self.temperature = self.set_initial_temperature()
+        self.temperature_threshold = 1
+        self.loss = 0
+        self.probability = 0
+        self.candidate = self.initialise_candidates()
+
+        self.anneal()
+
+    def set_initial_temperature(self):
+        candidate = list(range(0, self.jobs.quantity))
+        all_perms = list(itertools.permutations(candidate))
+        candidates = []
+        total_to_sample = len(all_perms) * 0.01  # Sample 1% of permutations
+        while total_to_sample > 0:
+            candidate = all_perms.pop(random.randrange(len(all_perms)))
+            candidates.append(self.calculate_fitness(candidate))
+            total_to_sample -= 1
+
+        return np.percentile(candidates, 95)
+
+    def anneal(self):
+        # while ((i < maxEvaluations) & & (temperature > temperatureThreshold))
+        #     xnew = generateRandomSolution(bounds, problemDimension);
+        #     calculate fitness here
+        #     loss = last fitness - current fitness
+        #     probability = exp(loss / temperature)
+        #
+        #     if ( new < current ) or random < probability:
+        #         current fit ness - new fitness
+        #         best candidate = current candidate
+        #
+        #     temperature = temperature * cooling_rate
+
+        pass
+
+
+
+class GA(Solver):
+    def __init__(self, jobs, machines):
+        Solver.__init__(self, jobs, machines)
+        self.parents = []
+        self.children = []
+        self.initial_candidate_size = 5
+        self.number_parents = 2
+        self.number_children = 5
+        self.current_generation = 1
+        self.candidate_id = 0
+
+        #self.brute_force_generate_all_permutations()
+
+        self.population = self.initialise_candidates()
+
+        for i in range(self.budget):
+            self.candidate_fitness = []
+            for ci, candidate in enumerate(self.population):
+                fitness = self.calculate_fitness(candidate)
+                self.candidate_fitness.append((ci, fitness))
+
+            # Sort candidate fitness in descending order
+            self.candidate_fitness = sorted(self.candidate_fitness, key=itemgetter(1))
+            if self.candidate_fitness[0][1] < self.best_candidate_fitness:
+                self.best_candidate_fitness = self.candidate_fitness[0][1]
+                self.best_candidate_permutation = self.population[self.candidate_fitness[0][0]]
+                print('Best candidate fitness is {} with permutation {}'.format(self.best_candidate_fitness,
+                                                                                self.best_candidate_permutation))
+
+            self.parents = self.parent_selection()
+
+            self.children = self.parent_crossover()
+
+            self.children_mutate()
+
+            self.population = self.update_population()
+
+        self.show_machine_times()
+
+        self.show_job_times()
+
+    def update_population(self):
+        new_pop = []
+        for i in range(self.number_parents):
+            new_pop.append(self.population[self.candidate_fitness[i][0]])
+
+        # Add children to population
+        new_pop.extend(self.children)
+        return new_pop
 
     def parent_selection(self):
         # Fitness proportionate selection (FPS), assigning probabilities to individuals acting as parents depending on their
@@ -191,7 +267,8 @@ class Scheduler:
        self.load_instances()
        self.lower_bound()
        self.upper_bound()
-       self.ga = GA(self.jobs, self.machines)
+       #self.ga = GA(self.jobs, self.machines)
+       self.sa = SA(self.jobs, self.machines)
 
 
        self.benchmarks = {}
