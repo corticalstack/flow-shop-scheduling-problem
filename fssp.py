@@ -12,6 +12,7 @@ import random
 import time
 from operator import itemgetter
 import itertools
+import math
 
 
 class Jobs:
@@ -43,7 +44,7 @@ class Solver:
         self.best_candidate_fitness = 9999
         self.best_candidate_permutation = []
 
-    def initialise_candidates(self):
+    def generate_solution(self):
         candidates = []
         candidate = list(range(0, self.jobs.quantity))
         while len(candidates) < self.initial_candidate_size:
@@ -120,45 +121,60 @@ class Solver:
     def wilcoxon(self):
         pass
 
+
 class SA(Solver):
     def __init__(self, jobs, machines):
         Solver.__init__(self, jobs, machines)
-        self.cooling_rate = 0.1
+        self.cooling_rate = 0.99
         self.temperature = self.set_initial_temperature()
+        self.best_candidate_permutation = self.generate_solution()[0]
+        self.best_candidate_fitness = self.calculate_fitness(self.best_candidate_permutation)
         self.temperature_threshold = 1
         self.loss = 0
         self.probability = 0
-        self.candidate = self.initialise_candidates()
 
         self.anneal()
 
     def set_initial_temperature(self):
         candidate = list(range(0, self.jobs.quantity))
-        all_perms = list(itertools.permutations(candidate))
-        candidates = []
-        total_to_sample = len(all_perms) * 0.01  # Sample 1% of permutations
-        while total_to_sample > 0:
-            candidate = all_perms.pop(random.randrange(len(all_perms)))
-            candidates.append(self.calculate_fitness(candidate))
-            total_to_sample -= 1
+        perms = list(itertools.permutations(candidate))
+        random.shuffle(perms)
 
-        return np.percentile(candidates, 95)
+        total_to_sample = int(len(perms) * 0.01)  # Sample 1% of permutations
+        del perms[total_to_sample:]
+
+        candidates = []
+        for candidate in perms:
+            candidates.append(self.calculate_fitness(candidate))
+
+        return int(np.percentile(candidates, 95))
+
+    def neighbour_solution(self):
+        new_candidate_permutation = self.best_candidate_permutation.copy()
+        tasks = random.sample(range(0, self.jobs.quantity), 2)
+        new_candidate_permutation[tasks[0]], new_candidate_permutation[tasks[1]] = \
+            new_candidate_permutation[tasks[1]], new_candidate_permutation[tasks[0]]
+        return new_candidate_permutation
 
     def anneal(self):
-        # while ((i < maxEvaluations) & & (temperature > temperatureThreshold))
-        #     xnew = generateRandomSolution(bounds, problemDimension);
-        #     calculate fitness here
-        #     loss = last fitness - current fitness
-        #     probability = exp(loss / temperature)
-        #
-        #     if ( new < current ) or random < probability:
-        #         current fit ness - new fitness
-        #         best candidate = current candidate
-        #
-        #     temperature = temperature * cooling_rate
+        i = 0
+        self.temperature = self.temperature / 27
+        #self.temperature = math.sqrt(self.temperature)
+        while i < self.budget and (self.temperature > self.temperature_threshold):
+            i += 1
+            new_candidate = self.neighbour_solution()  #JP to check if get neighbour solution OK/valid
 
-        pass
+            new_fitness = self.calculate_fitness(new_candidate)
+            loss = self.best_candidate_fitness - new_fitness
+            probability = math.exp(loss / self.temperature)
 
+            if (new_fitness < self.best_candidate_fitness) or (random.random() < probability):
+                self.best_candidate_fitness = new_fitness
+                self.best_candidate_permutation = new_candidate
+                print('Best candidate fitness is {} with permutation {}'.format(self.best_candidate_fitness,
+                                                                                self.best_candidate_permutation))
+
+            self.temperature *= self.cooling_rate
 
 
 class GA(Solver):
@@ -174,7 +190,7 @@ class GA(Solver):
 
         #self.brute_force_generate_all_permutations()
 
-        self.population = self.initialise_candidates()
+        self.population = self.generate_solution()
 
         for i in range(self.budget):
             self.candidate_fitness = []
