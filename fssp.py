@@ -13,7 +13,9 @@ import time
 from operator import itemgetter
 import itertools
 import math
-
+import seaborn as sns
+import pandas as pd
+import statistics
 
 class Jobs:
     """
@@ -37,12 +39,19 @@ class Machines:
 
 class Solver:
     def __init__(self, jobs, machines):
-        self.budget = 100000
         self.jobs = jobs
         self.machines = machines
+
+        # While working with real-world applications may require a customised computational budget, when dealing with benchmark problems is a common practice to use
+        # a fixed multipicative budget factor (usually = 5000 or 10000 fitness evaluations). Becnhmark functions can be usually tested at different dimensionality values and the budget factor is used to allocate a budget proportional to the number of desing variables.
+
+        self.computational_budget_base = 5000
+        self.computational_budget_total = self.computational_budget_base * 1
         self.initial_candidate_size = 1
         self.best_candidate_fitness = 9999
         self.best_candidate_permutation = []
+        self.fitness_trend = {}
+
 
     def generate_solution(self):
         candidates = []
@@ -115,12 +124,6 @@ class Solver:
             idle_time = sum([x[1][1] - (x[0][2]) for x in zip(m, m[1:] + [(0, m[-1][2], 0)])])
             print(row_format.format(self.machines.assigned_jobs[0][j][0], self.machines.assigned_jobs[0][j][1], self.machines.assigned_jobs[-1][j][2], '?'))
 
-    def plot_fitness_trend(self):
-        pass
-
-    def wilcoxon(self):
-        pass
-
 
 class SA(Solver):
     def __init__(self, jobs, machines):
@@ -133,7 +136,14 @@ class SA(Solver):
         self.loss = 0
         self.probability = 0
 
+        if self.__class__.__name__ not in self.fitness_trend:
+            self.fitness_trend[self.__class__.__name__] = []
+
+        #self.anneal()
+
+    def get_fitness(self):
         self.anneal()
+        return self.best_candidate_fitness
 
     def set_initial_temperature(self):
         candidate = list(range(0, self.jobs.quantity))
@@ -160,7 +170,7 @@ class SA(Solver):
         i = 0
         self.temperature = self.temperature / 27
         #self.temperature = math.sqrt(self.temperature)
-        while i < self.budget and (self.temperature > self.temperature_threshold):
+        while i < self.computational_budget_total and (self.temperature > self.temperature_threshold):
             i += 1
             new_candidate = self.neighbour_solution()  #JP to check if get neighbour solution OK/valid
 
@@ -176,6 +186,8 @@ class SA(Solver):
 
             self.temperature *= self.cooling_rate
 
+        self.fitness_trend[self.__class__.__name__].append(self.best_candidate_fitness)
+
 
 class GA(Solver):
     def __init__(self, jobs, machines):
@@ -188,11 +200,14 @@ class GA(Solver):
         self.current_generation = 1
         self.candidate_id = 0
 
+        if self.__class__.__name__ not in self.fitness_trend:
+            self.fitness_trend[self.__class__.__name__] = []
+
         #self.brute_force_generate_all_permutations()
 
         self.population = self.generate_solution()
 
-        for i in range(self.budget):
+        for i in range(self.computational_budget_total):
             self.candidate_fitness = []
             for ci, candidate in enumerate(self.population):
                 fitness = self.calculate_fitness(candidate)
@@ -214,9 +229,14 @@ class GA(Solver):
 
             self.population = self.update_population()
 
-        self.show_machine_times()
+        self.fitness_trend[self.__class__.__name__].append(self.best_candidate_fitness)
 
-        self.show_job_times()
+        #self.show_machine_times()
+
+        #self.show_job_times()
+
+    def get_fitness(self):
+        pass
 
     def update_population(self):
         new_pop = []
@@ -278,16 +298,30 @@ class Scheduler:
     Flow Shop Scheduling Problem
     """
     def __init__(self):
-       self.jobs = Jobs()
-       self.machines = Machines()
-       self.load_instances()
-       self.lower_bound()
-       self.upper_bound()
-       #self.ga = GA(self.jobs, self.machines)
-       self.sa = SA(self.jobs, self.machines)
+        self.jobs = Jobs()
+        self.machines = Machines()
+        self.load_instances()
+        self.lower_bound()
+        self.upper_bound()
+        self.number_test_executions = 5  # 30
+        self.algorithms = [{'Id': 'SA', 'Enabled': True},
+                           {'Id': 'GA', 'Enabled': True}]
+
+        for alg in self.algorithms:
+            if alg['Enabled']:
+                for i in range(self.number_test_executions):
+                    cls = globals()[alg['Id']]
+                    solver = cls(self.jobs, self.machines)
+                    fitness = solver.get_fitness()
+                    # JP need to append fitness here
+                    #self.ga = GA(self.jobs, self.machines)
 
 
-       self.benchmarks = {}
+        #self.plot_fitness() jp need to move this to solver
+        self.statistics()
+        self.wilcoxon()
+
+        self.benchmarks = {}
 
 
         # self.instance = []
@@ -310,6 +344,47 @@ class Scheduler:
         # self.plot_gantt()
         # #self.fifo()
         # #self.experiments()
+
+    def plot_fitness(self):
+        df = pd.DataFrame(self.sa.fitness_trend['SA'], columns=['fitness'])
+        g = sns.relplot(kind="line", data=df)
+        plt.show()
+
+        df = pd.DataFrame(self.ga.fitness_trend['GA'], columns=['fitness'])
+        g = sns.relplot(kind="line", data=df)
+        plt.show()
+
+    def statistics(self):
+        # remmber this wopuld be the mean and stddev over 30 runs for eg.
+        stddev = statistics.pstdev(self.sa.fitness_trend['SA'])
+        mean = statistics.mean(self.sa.fitness_trend['SA'])
+        print('SA Standard deviation is ', stddev)
+        print('SA Mean is ', mean)
+
+        stddev = statistics.pstdev(self.ga.fitness_trend['GA'])
+        mean = statistics.mean(self.ga.fitness_trend['GA'])
+        print('GA Standard deviation is ', stddev)
+        print('GA Mean is ', mean)
+
+    def wilcoxon(self):
+        alpha = 0.05
+        # This method print on screen a + or a - sign according to the outcome of the Wilcoxon test.
+        # The test is performed by taking into consideration two realisations of the same optimisation process performed with two different optimisers: the reference and the comparison algorithm.
+        # The distribution of the final results, obtained by applying the reference for a fixed number of runs, is compared with that one obtained by applying the comparsion algorithm for the same amout of runs.
+
+
+        from scipy.stats import ranksums
+        zstat, pvalue = ranksums(self.sa.fitness_trend['SA'], self.ga.fitness_trend['GA'])
+        print(zstat, pvalue)
+        # // Mann Whitney U-Test (Wilcoxon Rank-Sum)
+        w = '='
+        if pvalue < alpha:
+            if statistics.mean(self.sa.fitness_trend['SA']) < statistics.mean(self.ga.fitness_trend['GA']):
+                w = '+'
+            else:
+                w = '-'
+        print('Wilcoxon = ', w)
+
 
     def load_instances(self):
         instances = ['taillard_20_10_i1']
