@@ -4,20 +4,15 @@ from scipy.stats import ranksums
 
 class Stats:
     @staticmethod
-    def lower_bound(joblist):
-        jobs = [sum(p) for p in joblist]
-        print('Lower bound is {} for job {}'.format(min(jobs), jobs.index(min(jobs))))
-
-    @staticmethod
-    def upper_bound(joblist):
-        jobs = [sum(p) for p in joblist]
-        print('Upper bound is {} for job {}'.format(max(jobs), jobs.index(max(jobs))))
-
-    @staticmethod
     def basic(trend):
         for alg in trend:
             stddev = statistics.pstdev(trend[alg])
             mean = statistics.mean(trend[alg])
+            minf = min(trend[alg])
+            maxf = max(trend[alg])
+
+            print('{} Min (best) is {}'.format(alg, minf))
+            print('{} Max (worst) is {}'.format(alg, maxf))
             print('{} Standard deviation is {}'.format(alg, stddev))
             print('{} Mean is {}'.format(alg, mean))
 

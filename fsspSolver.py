@@ -110,8 +110,13 @@ class SA(FsspSolver):
 
     def set_initial_temperature(self):
         candidate = list(range(0, self.jobs.quantity))
-        perms = list(itertools.permutations(candidate))
-        random.shuffle(perms)
+        #perms = list(itertools.permutations(candidate))
+        perms = []
+        for i in range(1000):
+            c = candidate.copy()
+            random.shuffle(c)
+            perms.append(c)
+        #random.shuffle(perms)
 
         total_to_sample = int(len(perms) * 0.01)  # Sample 1% of permutations
         del perms[total_to_sample:]

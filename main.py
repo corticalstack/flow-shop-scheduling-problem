@@ -22,28 +22,27 @@ class Fssp:
     """
     def __init__(self):
         self.sample_runs = 5  # 30
-        self.algorithms = [{'Id': 'SA', 'Enabled': False},
+        self.algorithms = [{'Id': 'SA', 'Enabled': True},
                            {'Id': 'GA', 'Enabled': True}]
         self.fitness_trend = {}
 
         instances = ['taillard_20_10_i1']
+        #instances = ['taillard_20_5_i1']
         for inst in instances:
 
             # New job and machine instance for each benchmark instance
             self.jobs = Jobs()
-            self.machines = Machines()
-
+            self.machines = Machines(self.jobs)
             self.load_instance(inst)
-
-            # Output lower and upper bound for benchmark instance
-            Stats.lower_bound(self.jobs.joblist)
-            Stats.upper_bound(self.jobs.joblist)
+            self.machines.set_loadout_times(self.jobs)
+            self.machines.set_lower_bounds_taillard(self.jobs)
 
             for alg in self.algorithms:
                 if alg['Enabled']:
                     self.fitness_trend[alg['Id']] = []
                     cls = globals()[alg['Id']]
                     solver = cls(self.jobs, self.machines)
+                    #solver.brute_force_generate_all_permutations()
                     for i in range(self.sample_runs):
 
                         # Invoke class dynamically
@@ -53,7 +52,7 @@ class Fssp:
                         self.fitness_trend[alg['Id']].append(fitness)
 
             Stats.basic(self.fitness_trend)
-            Stats.wilcoxon(self.fitness_trend)
+            #Stats.wilcoxon(self.fitness_trend)
 
 
     def load_instance(self, inst):
@@ -63,9 +62,10 @@ class Fssp:
             for i, job_detail in enumerate(line):
                 job_detail = job_detail.strip('\n')
                 if i == 0:
-                    self.machines.quantity, self.jobs.quantity = [int(n) for n in job_detail.split()]
+                    self.jobs.quantity, self.machines.quantity = [int(n) for n in job_detail.split()]
                 else:
-                    self.jobs.add(job_detail)
+                    self.jobs.add(job_detail, self.machines.quantity)
+
 
 
 if __name__ == "__main__":
