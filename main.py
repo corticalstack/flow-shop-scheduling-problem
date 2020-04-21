@@ -32,8 +32,9 @@ class Fssp:
 
             # New job and machine instance for each benchmark instance
             self.jobs = Jobs()
-            self.machines = Machines(self.jobs)
+            self.machines = Machines()
             self.load_instance(inst)
+            self.jobs.set_job_total_units()
             self.machines.set_loadout_times(self.jobs)
             self.machines.set_lower_bounds_taillard(self.jobs)
 
