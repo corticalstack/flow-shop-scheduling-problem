@@ -6,6 +6,7 @@ from visualisation import Visualisation
 import os
 import sys
 import logging
+import time
 from datetime import datetime
 import logger as lg
 
@@ -21,7 +22,7 @@ class Fssp:
     """
     def __init__(self):
         lg.message(logging.INFO, 'Starting flow shop scheduling problem')
-        self.sample_runs = 5  # 30
+        self.sample_runs = 30  # 30
         self.algorithms = [{'Id': 'SA', 'Enabled': True},
                            {'Id': 'GA', 'Enabled': True}]
         self.fitness_trend = {}
@@ -50,17 +51,23 @@ class Fssp:
                     solver = cls(self.jobs, self.machines)
 
                     lg.message(logging.INFO, 'Executing {} sample runs'.format(self.sample_runs))
+                    alg_runs_time_to_complete = 0
                     for i in range(self.sample_runs):
-
                         # Invoke class dynamically
+                        alg_run_start_time = time.time()
                         fitness, permutation, trend = solver.solve()
+                        alg_runs_time_to_complete += time.time() - alg_run_start_time
                         lg.message(logging.INFO, 'Run {} fitness is {} with permutation {}'.format(i, fitness,
                                                                                                    permutation))
                         Visualisation.plot_fitness_trend(trend)
 
                         self.fitness_trend[alg['Id']].append(fitness)
 
-            Stats.basic(self.fitness_trend)
+                    Stats.basic(self.fitness_trend[alg['Id']])
+                    lg.message(logging.INFO, 'Completed algorithm {} in {}s'.format(alg['Id'], round(
+                        alg_runs_time_to_complete, 2)))
+
+            Visualisation.plot_fitness_trend_all_algs(self.fitness_trend)
             #Stats.wilcoxon(self.fitness_trend)
 
         lg.message(logging.INFO, 'Flow shop scheduling problem completed')
@@ -88,7 +95,7 @@ class Fssp:
 if __name__ == "__main__":
     log_filename = str('fssp_' + datetime.now().strftime("%Y%m%d-%H%M%S") + '.txt')
 
-    logging.basicConfig(filename='logs/' + log_filename, level=logging.DEBUG,
+    logging.basicConfig(filename='logs/' + log_filename, level=logging.INFO,
                         format='%(asctime)s - %(levelname)s - %(message)s')
 
     # Disable matplotlib font manager logger

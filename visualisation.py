@@ -10,7 +10,13 @@ class Visualisation:
 
     @staticmethod
     def plot_fitness_trend(trend):
-        df = pd.DataFrame(trend, columns=['fitness'])
+        df = pd.DataFrame(trend)
+        g = sns.relplot(kind="line", data=df)
+        plt.show()
+
+    @staticmethod
+    def plot_fitness_trend_all_algs(trend):
+        df = pd.DataFrame(trend)
         g = sns.relplot(kind="line", data=df)
         plt.show()
 

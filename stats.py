@@ -1,20 +1,20 @@
 import statistics
 from scipy.stats import ranksums
+import logging
+import logger as lg
 
 
 class Stats:
     @staticmethod
     def basic(trend):
-        for alg in trend:
-            stddev = statistics.pstdev(trend[alg])
-            mean = statistics.mean(trend[alg])
-            minf = min(trend[alg])
-            maxf = max(trend[alg])
-
-            print('{} Min (best) is {}'.format(alg, minf))
-            print('{} Max (worst) is {}'.format(alg, maxf))
-            print('{} Standard deviation is {}'.format(alg, stddev))
-            print('{} Mean is {}'.format(alg, mean))
+        stddev = round(statistics.pstdev(trend), 3)
+        mean = round(statistics.mean(trend), 3)
+        minf = min(trend)
+        maxf = max(trend)
+        lg.message(logging.INFO, 'Minimum (best) is {}'.format(minf))
+        lg.message(logging.INFO, 'Maximum (worst) is {}'.format(maxf))
+        lg.message(logging.INFO, 'Standard deviation is {}'.format(stddev))
+        lg.message(logging.INFO, 'Avg is {}'.format(mean))
 
     @staticmethod
     def wilcoxon(trend):

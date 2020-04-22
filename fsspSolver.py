@@ -1,5 +1,6 @@
 import math
 import random
+random.seed(42)  # Seed the random number generator
 import itertools
 import numpy as np
 from operator import itemgetter
@@ -110,34 +111,28 @@ class SA(FsspSolver):
         lg.message(logging.DEBUG, 'Cooling rate set to {}'.format(self.cooling_rate))
 
     def solve(self):
-        lg.message(logging.INFO, 'Solving...')
         self.fitness_trend = []
         self.temperature = self.initial_temperature
         self.best_candidate_permutation = self.generate_solution()[0]
         self.best_candidate_fitness = self.calculate_fitness(self.best_candidate_permutation)
         self.anneal()
-        lg.message(logging.INFO, 'Solved')
         return self.best_candidate_fitness, self.best_candidate_permutation, self.fitness_trend
 
     def set_initial_temperature(self):
         candidate = list(range(0, self.jobs.quantity))
-        #perms = list(itertools.permutations(candidate))
+        num_perms = int(math.pow(self.jobs.quantity, 3))
         perms = []
-        for i in range(1000):
+        for i in range(num_perms):
             c = candidate.copy()
             random.shuffle(c)
             perms.append(c)
-        #random.shuffle(perms)
-
-        total_to_sample = int(len(perms) * 0.01)  # Sample 1% of permutations
-        del perms[total_to_sample:]
 
         candidates = []
         for candidate in perms:
             candidates.append(self.calculate_fitness(candidate))
 
-        it = int(np.percentile(candidates, 95))
-        lg.message(logging.DEBUG, 'Initial temperature set to {}'.format(it))
+        it = round(int(np.percentile(candidates, 90)) / 27, 2)
+        lg.message(logging.INFO, 'Initial temperature set to {}'.format(it))
         return it
 
     def neighbour_solution(self):
@@ -148,11 +143,11 @@ class SA(FsspSolver):
         return new_candidate_permutation
 
     def anneal(self):
-        i = 0
-        self.temperature = self.temperature / 27
+        budget = self.computational_budget_total
+
         #self.temperature = math.sqrt(self.temperature)
-        while self.computational_budget_total > 0 and (self.temperature > self.temperature_threshold):
-            self.computational_budget_total -= 1
+        while budget > 0 and (self.temperature > self.temperature_threshold):
+            budget -= 1
             new_candidate = self.neighbour_solution()  #JP to check if get neighbour solution OK/valid
 
             new_fitness = self.calculate_fitness(new_candidate)
@@ -171,7 +166,7 @@ class SA(FsspSolver):
 
             self.temperature *= self.cooling_rate
 
-        lg.message(logging.DEBUG, 'Computational budget remaining is {}'.format(self.computational_budget_total))
+        lg.message(logging.DEBUG, 'Computational budget remaining is {}'.format(budget))
         lg.message(logging.DEBUG, 'Completed annealing with temperature at {}'.format(self.temperature))
 
 
@@ -206,10 +201,11 @@ class GA(FsspSolver):
         return self.best_candidate_fitness, self.best_candidate_permutation, self.fitness_trend
 
     def evolve(self):
+        budget = self.computational_budget_total
         self.population = self.generate_solution()
 
-        while self.computational_budget_total > 0:
-            self.computational_budget_total -= 1
+        while budget > 0:
+            budget -= 1
             self.candidate_fitness = []
             for ci, candidate in enumerate(self.population):
                 fitness = self.calculate_fitness(candidate)
@@ -232,7 +228,7 @@ class GA(FsspSolver):
 
             self.population = self.update_population()
 
-        lg.message(logging.DEBUG, 'Computational budget remaining is {}'.format(self.computational_budget_total))
+        lg.message(logging.DEBUG, 'Computational budget remaining is {}'.format(budget))
 
     def update_population(self):
         new_pop = []
