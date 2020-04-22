@@ -60,33 +60,17 @@ class FsspSolver:
 
         return self.machines.assigned_jobs[-1][-1][2]
 
-    def brute_force_generate_all_permutations(self):
-        # JP need to add count of solutions with specific fitness value
-        candidate = list(range(0, self.jobs.quantity))
-        all_perms = list(itertools.permutations(candidate))
-        print(len(all_perms))
-        best = 999999
-        f_set = set()
-        for p in all_perms:
-            fitness = self.calculate_fitness(p)
-            if fitness < best:
-                print('Current best is {} for candidate {}'.format(fitness, p))
-                best = fitness
-            f_set.add(fitness)
-
-        print('All possible distinct fitness values ', sorted(f_set))
-
     # what is diff between idle time and wait time?
-    def show_machine_times(self):
-        fitness = self.calculate_fitness(self.best_candidate_permutation)
+    def show_machine_times(self, permutation):
+        fitness = self.calculate_fitness(permutation) # set machine assigned jobs to best permutation
+        lg.message(logging.INFO, 'Machine\tStart Time\tFinish Time\tIdle Time')
 
-        row_format = "{:>15}" * 4
-        print(row_format.format('Machine', 'Start Time', 'Finish Time', 'Idle Time'))
-        # [x[1][1]-(x[0][2]) for x in zip(m, m[1:] + [(0, 0, 0)])]
         for mi, m in enumerate(self.machines.assigned_jobs):
             finish_time = m[-1][2]
             idle_time = sum([x[1][1]-(x[0][2]) for x in zip(m, m[1:] + [(0, m[-1][2], 0)])])
-            print(row_format.format(mi, m[0][1], finish_time, idle_time))
+            #ltext = str(mi) + '\t' + str(m[0][1]) + '\t' + str(finish_time) + '\t' + str(idle_time)
+            lg.message(logging.INFO, '{}\t\t{}\t\t{}\t\t{}'.format(str(mi), str(m[0][1]), str(finish_time), str(idle_time)))
+
 
     def show_job_times(self):
         print('Best permutation is ', self.best_candidate_permutation)

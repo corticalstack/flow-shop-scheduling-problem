@@ -22,9 +22,11 @@ class Fssp:
     """
     def __init__(self):
         lg.message(logging.INFO, 'Starting flow shop scheduling problem')
-        self.sample_runs = 30  # 30
+        self.sample_runs = 5  # 30
         self.algorithms = [{'Id': 'SA', 'Enabled': True},
                            {'Id': 'GA', 'Enabled': True}]
+        self.best_candidate_fitness = 9999
+        self.best_candidate_permutation = []
         self.fitness_trend = {}
         self.instance_lower_bound = 0
         self.instance_upper_bound = 0  # Best known minimisation
@@ -46,6 +48,8 @@ class Fssp:
             for alg in self.algorithms:
                 if alg['Enabled']:
                     lg.message(logging.INFO, 'Processing algorithm {}'.format(alg['Id']))
+                    self.best_candidate_fitness = 9999
+                    self.best_candidate_permutation = []
                     self.fitness_trend[alg['Id']] = []
                     cls = globals()[alg['Id']]
                     solver = cls(self.jobs, self.machines)
@@ -56,6 +60,10 @@ class Fssp:
                         # Invoke class dynamically
                         alg_run_start_time = time.time()
                         fitness, permutation, trend = solver.solve()
+                        if fitness < self.best_candidate_fitness:
+                            self.best_candidate_fitness = fitness
+                            self.best_candidate_permutation = permutation
+
                         alg_runs_time_to_complete += time.time() - alg_run_start_time
                         lg.message(logging.INFO, 'Run {} fitness is {} with permutation {}'.format(i, fitness,
                                                                                                    permutation))
@@ -66,7 +74,8 @@ class Fssp:
                     Stats.basic(self.fitness_trend[alg['Id']])
                     lg.message(logging.INFO, 'Completed algorithm {} in {}s'.format(alg['Id'], round(
                         alg_runs_time_to_complete, 2)))
-
+                    lg.message(logging.INFO, 'Machine times for best fitness of {}'.format(self.best_candidate_fitness))
+                    solver.show_machine_times(self.best_candidate_permutation)
             Visualisation.plot_fitness_trend_all_algs(self.fitness_trend)
             #Stats.wilcoxon(self.fitness_trend)
 
@@ -96,7 +105,7 @@ if __name__ == "__main__":
     log_filename = str('fssp_' + datetime.now().strftime("%Y%m%d-%H%M%S") + '.txt')
 
     logging.basicConfig(filename='logs/' + log_filename, level=logging.INFO,
-                        format='%(asctime)s - %(levelname)s - %(message)s')
+                        format='[%(asctime)s] [%(levelname)8s] %(message)s')
 
     # Disable matplotlib font manager logger
     logging.getLogger('matplotlib.font_manager').disabled = True
