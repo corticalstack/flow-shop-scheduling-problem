@@ -9,9 +9,8 @@ import logging
 import time
 from datetime import datetime
 import logger as lg
-
 import plotly.figure_factory as ff
-import matplotlib.font_manager as font_manager
+
 script_name = os.path.basename(sys.argv[0]).split('.')
 import time
 
@@ -22,24 +21,31 @@ class Fssp:
     """
     def __init__(self):
         lg.message(logging.INFO, 'Starting flow shop scheduling problem')
-        self.sample_runs = 5  # 30
+        self.sample_runs = 1  # 30
         self.algorithms = [{'Id': 'SA', 'Enabled': True},
-                           {'Id': 'GA', 'Enabled': True}]
+                           {'Id': 'GA', 'Enabled': False}]
         self.best_candidate_fitness = 9999
         self.best_candidate_permutation = []
         self.fitness_trend = {}
         self.instance_lower_bound = 0  # Approximated best
         self.instance_upper_bound = 0  # Best known minimisation
 
-        instances = ['taillard_20_10_i1']
-        #instances = ['taillard_20_5_i1']
+        instances = [{'Id': 'taillard_20_5_i1', 'Enabled': False},
+                     {'Id': 'taillard_20_10_i1', 'Enabled': True},
+                     {'Id': 'taillard_50_10_i1', 'Enabled': False},
+                     {'Id': 'taillard_100_10_i1', 'Enabled': False}]
+
         for inst in instances:
-            lg.message(logging.INFO, 'Processing benchmark instance {}'.format(inst))
+            if not inst['Enabled']:
+                continue
+
+            lg.message(logging.INFO, 'Processing benchmark problem instance {}'.format(inst['Id']))
             # New job and machine instance for each benchmark instance
 
             self.jobs = Jobs()
             self.machines = Machines()
-            self.load_instance(inst)
+            self.visualisation = Visualisation()
+            self.load_instance(inst['Id'])
 
             self.jobs.set_job_total_units()
             self.machines.set_loadout_times(self.jobs)
@@ -67,13 +73,15 @@ class Fssp:
                         alg_runs_time_to_complete += time.time() - alg_run_start_time
                         lg.message(logging.INFO, 'Run {} fitness is {} with permutation {}'.format(i, fitness,
                                                                                                    permutation))
-                        Visualisation.plot_fitness_trend(trend)
+                        self.visualisation.plot_fitness_trend(trend)
 
                         self.fitness_trend[alg['Id']].append(fitness)
 
                     Stats.basic(self.fitness_trend[alg['Id']])
                     Stats.taillard_compare(self.instance_lower_bound, self.instance_upper_bound,
                                            self.best_candidate_fitness)
+
+                    self.visualisation.plot_gantt(self.best_candidate_permutation, self.machines, self.jobs, solver)
 
                     lg.message(logging.INFO, 'Completed algorithm {} in {}s'.format(alg['Id'], round(
                         alg_runs_time_to_complete, 2)))
@@ -84,7 +92,7 @@ class Fssp:
                         self.best_candidate_fitness, self.best_candidate_permutation))
                     self.jobs.times(self.best_candidate_permutation, self.machines, solver)
 
-            Visualisation.plot_fitness_trend_all_algs(self.fitness_trend)
+            self.visualisation.plot_fitness_trend_all_algs(self.fitness_trend)
             #Stats.wilcoxon(self.fitness_trend)
 
         lg.message(logging.INFO, 'Flow shop scheduling problem completed')
@@ -102,10 +110,9 @@ class Fssp:
                 else:
                     self.jobs.add(job_detail, self.machines.quantity)
 
-        lg.message(logging.INFO, 'Benchmark problem with {} machines and {} jobs'.format(self.machines.quantity,
-                                                                                         self.jobs.quantity))
-        lg.message(logging.INFO, 'Taillard benchmark instance lower bound is {}'.format(self.instance_lower_bound))
-        lg.message(logging.INFO, 'Taillard benchmark instance best known upper bound is {}'.format(
+        lg.message(logging.INFO, '{} machines and {} jobs'.format(self.machines.quantity, self.jobs.quantity))
+        lg.message(logging.INFO, 'Taillard lower bound is {}'.format(self.instance_lower_bound))
+        lg.message(logging.INFO, 'Taillard best known upper bound is {}'.format(
             self.instance_upper_bound))
 
 
