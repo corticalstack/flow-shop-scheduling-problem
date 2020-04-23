@@ -60,28 +60,6 @@ class FsspSolver:
 
         return self.machines.assigned_jobs[-1][-1][2]
 
-    # what is diff between idle time and wait time?
-    def show_machine_times(self, permutation):
-        fitness = self.calculate_fitness(permutation) # set machine assigned jobs to best permutation
-        lg.message(logging.INFO, 'Machine\tStart Time\tFinish Time\tIdle Time')
-
-        for mi, m in enumerate(self.machines.assigned_jobs):
-            finish_time = m[-1][2]
-            idle_time = sum([x[1][1]-(x[0][2]) for x in zip(m, m[1:] + [(0, m[-1][2], 0)])])
-            #ltext = str(mi) + '\t' + str(m[0][1]) + '\t' + str(finish_time) + '\t' + str(idle_time)
-            lg.message(logging.INFO, '{}\t\t{}\t\t{}\t\t{}'.format(str(mi), str(m[0][1]), str(finish_time), str(idle_time)))
-
-
-    def show_job_times(self):
-        print('Best permutation is ', self.best_candidate_permutation)
-        print('With fitness value of ', self.best_candidate_fitness)
-        row_format = "{:>15}" * 4
-        print(row_format.format('Job', 'Start Time', 'Finish Time', 'Idle Time'))
-        ### JP - to finish calculating idle time for jobs
-        for j in range(self.jobs.quantity):
-            idle_time = sum([x[1][1] - (x[0][2]) for x in zip(m, m[1:] + [(0, m[-1][2], 0)])])
-            print(row_format.format(self.machines.assigned_jobs[0][j][0], self.machines.assigned_jobs[0][j][1], self.machines.assigned_jobs[-1][j][2], '?'))
-
 
 class SA(FsspSolver):
     def __init__(self, jobs, machines):

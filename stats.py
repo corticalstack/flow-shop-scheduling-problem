@@ -17,6 +17,16 @@ class Stats:
         lg.message(logging.INFO, 'Avg is {}'.format(mean))
 
     @staticmethod
+    def taillard_compare(lb, ub, alg_fitness):
+        diff = round(((alg_fitness - lb) / lb) * 100, 2)
+        lg.message(logging.INFO, 'Difference between Taillard approximate lb ({}) and best fitness ({}) is {}%'.format(
+            lb, alg_fitness, diff))
+
+        diff = round(((alg_fitness - ub) / ub) * 100, 2)
+        lg.message(logging.INFO, 'Difference between Taillard best known ub ({}) and best fitness ({}) is {}%'.format(
+            ub, alg_fitness, diff))
+
+    @staticmethod
     def wilcoxon(trend):
         alpha = 0.05
         # This method print on screen a + or a - sign according to the outcome of the Wilcoxon test.

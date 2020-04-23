@@ -38,3 +38,17 @@ class Machines:
         if max(self.lower_bounds_taillard) != ilb:
             lg.message(logging.WARNING, 'Calculated Taillard benchmark instance ({}) not equal to lower bound in '
                                         'benchmark instance file ({})'.format(max(self.lower_bounds_taillard), ilb))
+
+    def times(self, permutation, solver):
+        total_idle_time = 0
+        fitness = solver.calculate_fitness(permutation)  # set machine assigned jobs to best permutation
+        lg.message(logging.INFO, 'Machine\tStart Time\tFinish Time\tIdle Time')
+
+        # Calculate idle time from list tuples as start time(m+1) - finish time(m). Include last machine start time
+        for mi, m in enumerate(self.assigned_jobs):
+            finish_time = m[-1][2]
+            idle_time = sum([x[1]-x[0] for x in zip([x[2] for x in m], [x[1] for x in m[1:] + [(0, m[-1][2], 0)]])])
+            total_idle_time += idle_time
+            lg.message(logging.INFO, '{}\t\t{}\t\t{}\t\t{}'.format(str(mi), str(m[0][1]), str(finish_time),
+                                                                   str(idle_time)))
+        lg.message(logging.INFO, 'Machines total idle time is {}'.format(total_idle_time))

@@ -28,7 +28,7 @@ class Fssp:
         self.best_candidate_fitness = 9999
         self.best_candidate_permutation = []
         self.fitness_trend = {}
-        self.instance_lower_bound = 0
+        self.instance_lower_bound = 0  # Approximated best
         self.instance_upper_bound = 0  # Best known minimisation
 
         instances = ['taillard_20_10_i1']
@@ -72,10 +72,18 @@ class Fssp:
                         self.fitness_trend[alg['Id']].append(fitness)
 
                     Stats.basic(self.fitness_trend[alg['Id']])
+                    Stats.taillard_compare(self.instance_lower_bound, self.instance_upper_bound,
+                                           self.best_candidate_fitness)
+
                     lg.message(logging.INFO, 'Completed algorithm {} in {}s'.format(alg['Id'], round(
                         alg_runs_time_to_complete, 2)))
                     lg.message(logging.INFO, 'Machine times for best fitness of {}'.format(self.best_candidate_fitness))
-                    solver.show_machine_times(self.best_candidate_permutation)
+                    self.machines.times(self.best_candidate_permutation, solver)
+
+                    lg.message(logging.INFO, 'Job times for best fitness of {} with permutation {}'.format(
+                        self.best_candidate_fitness, self.best_candidate_permutation))
+                    self.jobs.times(self.best_candidate_permutation, self.machines, solver)
+
             Visualisation.plot_fitness_trend_all_algs(self.fitness_trend)
             #Stats.wilcoxon(self.fitness_trend)
 
