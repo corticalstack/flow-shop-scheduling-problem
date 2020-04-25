@@ -29,7 +29,7 @@ class Jobs:
 
     def times(self, permutation, machines, solver):
         total_idle_time = 0
-        fitness = solver.calculate_fitness(permutation)  # set machine assigned jobs to best permutation
+        fitness, _ = solver.calculate_fitness(permutation, 1)  # set machine assigned jobs to best permutation
 
         lg.message(logging.INFO, 'Job\tStart Time\tFinish Time\tIdle Time')
         for pi, p in enumerate(permutation):

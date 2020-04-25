@@ -17,19 +17,21 @@ class Visualisation:
                            }
 
     @staticmethod
-    def plot_fitness_trend(trend):
-        df = pd.DataFrame(trend)
-        g = sns.relplot(kind="line", data=df)
+    def plot_ft(trend):
+        df_ft = pd.DataFrame(trend)
+        g = sns.relplot(kind="line", data=df_ft)
         plt.show()
 
     @staticmethod
-    def plot_fitness_trend_all_algs(trend):
-        df = pd.DataFrame(trend)
-        g = sns.relplot(kind="line", data=df)
+    def plot_ft_all_optimizers(optimizers):
+        df_ft = pd.DataFrame()
+        for opt in optimizers:
+            df_ft[opt['Id']] = opt['Ft']
+        g = sns.relplot(kind="line", data=df_ft)
         plt.show()
 
     def plot_gantt(self, permutation, machines, jobs, solver):
-        fitness = solver.calculate_fitness(permutation)  # set machine assigned jobs to best permutation
+        fitness, _ = solver.calculate_fitness(permutation, 1)  # set machine assigned jobs to best permutation
 
         x_width = fitness
         if jobs.quantity <= 20:

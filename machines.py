@@ -41,7 +41,7 @@ class Machines:
 
     def times(self, permutation, solver):
         total_idle_time = 0
-        fitness = solver.calculate_fitness(permutation)  # set machine assigned jobs to best permutation
+        fitness, _ = solver.calculate_fitness(permutation, 1)  # set machine assigned jobs to best permutation
         lg.message(logging.INFO, 'Machine\tStart Time\tFinish Time\tIdle Time')
 
         # Calculate idle time from list tuples as start time(m+1) - finish time(m). Include last machine start time

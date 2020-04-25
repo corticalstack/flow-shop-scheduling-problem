@@ -18,13 +18,14 @@ class FsspSolver:
         # While working with real-world applications may require a customised computational budget, when dealing with benchmark problems is a common practice to use
         # a fixed multipicative budget factor (usually = 5000 or 10000 fitness evaluations). Becnhmark functions can be usually tested at different dimensionality values and the budget factor is used to allocate a budget proportional to the number of desing variables.
 
-        self.computational_budget_base = 5000
-        self.computational_budget_total = self.computational_budget_base * 1
-        lg.message(logging.INFO, 'Computational budget is {}'.format(self.computational_budget_total))
+        self.comp_budget_base = 5000
+        self.comp_budget_total = self.comp_budget_base * self.jobs.quantity
+        self.remaining_budget = self.comp_budget_total
+        lg.message(logging.INFO, 'Computational budget is {}'.format(self.comp_budget_total))
 
         self.initial_candidate_size = 1
-        self.best_candidate_fitness = 9999
-        self.best_candidate_permutation = []
+        self.best_cf = 9999
+        self.best_cp = []
         self.fitness_trend = []
 
     def generate_solution(self):
@@ -37,7 +38,7 @@ class FsspSolver:
             candidates.append(candidate.copy())
         return candidates
 
-    def calculate_fitness(self, candidate):
+    def calculate_fitness(self, candidate, remaining_budget):
         self.machines.assigned_jobs = []
         for i in range(0, self.machines.quantity):
             self.machines.assigned_jobs.append([])
@@ -58,31 +59,34 @@ class FsspSolver:
                 self.machines.assigned_jobs[mi].append((j, start_time, end_time))
                 start_time = end_time
 
-        return self.machines.assigned_jobs[-1][-1][2]
+        return self.machines.assigned_jobs[-1][-1][2], remaining_budget - 1
 
 
 class SA(FsspSolver):
     def __init__(self, jobs, machines):
         FsspSolver.__init__(self, jobs, machines)
-        self.temperature = 0
-        self.temperature_threshold = 1
-        lg.message(logging.DEBUG, 'Temperature threshold set to {}'.format(self.temperature_threshold))
-        self.initial_temperature = self.set_initial_temperature()
+        self.temp = 0
+        self.temp_threshold = 1
+        lg.message(logging.DEBUG, 'Temperature threshold set to {}'.format(self.temp_threshold))
+
+        self.cost_initial_temp = 0
+        self.initial_temp = self.set_initial_temperature()
 
         self.cooling_rate = 0.99
         lg.message(logging.DEBUG, 'Cooling rate set to {}'.format(self.cooling_rate))
 
     def solve(self):
+        self.remaining_budget = self.comp_budget_total - self.cost_initial_temp
         self.fitness_trend = []
-        self.temperature = self.initial_temperature
-        self.best_candidate_permutation = self.generate_solution()[0]
-        self.best_candidate_fitness = self.calculate_fitness(self.best_candidate_permutation)
+        self.temp = self.initial_temp
+        self.best_cp = self.generate_solution()[0]
+        self.best_cf, self.remaining_budget = self.calculate_fitness(self.best_cp, self.remaining_budget)
         self.anneal()
-        return self.best_candidate_fitness, self.best_candidate_permutation, self.fitness_trend
+        return self.best_cf, self.best_cp, self.fitness_trend
 
     def set_initial_temperature(self):
         candidate = list(range(0, self.jobs.quantity))
-        num_perms = int(math.pow(self.jobs.quantity, 3))
+        num_perms = int(math.pow(self.jobs.quantity, 2))
         perms = []
         for i in range(num_perms):
             c = candidate.copy()
@@ -91,45 +95,44 @@ class SA(FsspSolver):
 
         candidates = []
         for candidate in perms:
-            candidates.append(self.calculate_fitness(candidate))
+            fitness, self.remaining_budget = self.calculate_fitness(candidate, self.remaining_budget)
+            candidates.append(fitness)
 
+        self.cost_initial_temp = self.comp_budget_total - self.remaining_budget
         it = round(int(np.percentile(candidates, 90)) / 27, 2)
         lg.message(logging.INFO, 'Initial temperature set to {}'.format(it))
         return it
 
     def neighbour_solution(self):
-        new_candidate_permutation = self.best_candidate_permutation.copy()
+        new_candidate_permutation = self.best_cp.copy()
         tasks = random.sample(range(0, self.jobs.quantity), 2)
         new_candidate_permutation[tasks[0]], new_candidate_permutation[tasks[1]] = \
             new_candidate_permutation[tasks[1]], new_candidate_permutation[tasks[0]]
         return new_candidate_permutation
 
     def anneal(self):
-        budget = self.computational_budget_total
-
         #self.temperature = math.sqrt(self.temperature)
-        while budget > 0 and (self.temperature > self.temperature_threshold):
-            budget -= 1
+        while self.remaining_budget > 0 and (self.temp > self.temp_threshold):
             new_candidate = self.neighbour_solution()  #JP to check if get neighbour solution OK/valid
 
-            new_fitness = self.calculate_fitness(new_candidate)
-            loss = self.best_candidate_fitness - new_fitness
-            probability = math.exp(loss / self.temperature)
+            new_fitness, self.remaining_budget = self.calculate_fitness(new_candidate, self.remaining_budget)
+            loss = self.best_cf - new_fitness
+            probability = math.exp(loss / self.temp)
 
             rr = random.random()
-            if (new_fitness < self.best_candidate_fitness) or (rr < probability):
+            if (new_fitness < self.best_cf) or (rr < probability):
                 lg.message(logging.DEBUG, 'Previous best is {}, now updated with new best {}'.format(
-                    self.best_candidate_fitness, new_fitness))
+                    self.best_cf, new_fitness))
                 if rr < probability:
                     lg.message(logging.DEBUG, 'Random {} less than probability {}'.format(rr, probability))
-                self.best_candidate_fitness = new_fitness
-                self.best_candidate_permutation = new_candidate
-                self.fitness_trend.append(self.best_candidate_fitness)
+                self.best_cf = new_fitness
+                self.best_cp = new_candidate
+                self.fitness_trend.append(self.best_cf)
 
-            self.temperature *= self.cooling_rate
+            self.temp *= self.cooling_rate
 
-        lg.message(logging.DEBUG, 'Computational budget remaining is {}'.format(budget))
-        lg.message(logging.DEBUG, 'Completed annealing with temperature at {}'.format(self.temperature))
+        lg.message(logging.DEBUG, 'Computational budget remaining is {}'.format(self.remaining_budget))
+        lg.message(logging.DEBUG, 'Completed annealing with temperature at {}'.format(self.temp))
 
 
 class GA(FsspSolver):
@@ -156,6 +159,7 @@ class GA(FsspSolver):
         #self.show_job_times()
 
     def solve(self):
+        self.remaining_budget = self.comp_budget_total
         self.fitness_trend = []
         self.best_candidate_fitness = 9999
         self.best_candidate_permutation = []
@@ -163,14 +167,12 @@ class GA(FsspSolver):
         return self.best_candidate_fitness, self.best_candidate_permutation, self.fitness_trend
 
     def evolve(self):
-        budget = self.computational_budget_total
         self.population = self.generate_solution()
 
-        while budget > 0:
-            budget -= 1
+        while self.remaining_budget > 0:
             self.candidate_fitness = []
             for ci, candidate in enumerate(self.population):
-                fitness = self.calculate_fitness(candidate)
+                fitness, self.remaining_budget = self.calculate_fitness(candidate, self.remaining_budget)
                 self.candidate_fitness.append((ci, fitness))
 
             # Sort candidate fitness in descending order
@@ -190,7 +192,7 @@ class GA(FsspSolver):
 
             self.population = self.update_population()
 
-        lg.message(logging.DEBUG, 'Computational budget remaining is {}'.format(budget))
+        lg.message(logging.DEBUG, 'Computational budget remaining is {}'.format(self.remaining_budget))
 
     def update_population(self):
         new_pop = []
