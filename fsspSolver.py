@@ -289,16 +289,26 @@ class PSO(FsspSolver):
         self.candidate_fitness = []
         self.population = []
 
-        self.c1 = 1.49445  # Cognitive
-        self.c2 = 1.49445  # Social
-        self.w = 0.72984   # Inertia
-        self.k = 2         # Number of neighbours
-        self.max_velocity = 20
-        self.min_velocity = 20
+        self.min = 0
+        self.max = 4
+        self.velocity_clip = (-4, 4)
+
+        self.weight = 0.72984  # Inertia
+        self.local_c1 = 1.49445
+        self.global_c2 = 1.49445
+
+        self.max_velocity = 4
+        self.min_velocity = -4
         self.gbest = None
         self.initial_candidate_size = 5
         self.global_best_fitness = 999999999
         self.global_best_permutation = []
+
+    def generate_solution(self):
+        candidate = []
+        for j in range(self.jobs.quantity):
+            candidate.append(round(self.min + (self.max-self.min) * random.uniform(0, 1), 2))
+        return candidate
 
     def solve(self):
         self.remaining_budget = self.comp_budget_total
@@ -308,19 +318,20 @@ class PSO(FsspSolver):
         self.global_best_permutation = []
 
         self.evolve()
-        return self.best_cf, self.best_cp, self.fitness_trend
+        return self.global_best_fitness, self.global_best_permutation, self.fitness_trend
 
     def evolve(self):
 
         # Iniitalise population
         for i in range(self.initial_candidate_size):
             particle = Particle()
-            particle.permutation = self.generate_solution()  # Generate random permutation
+            particle.permutation_continuous = self.generate_solution()  # Generate random permutation
+            particle.permutation = self.transform_continuous_permutation(particle)
             particle.fitness, self.remaining_budget = self.calculate_fitness(particle.permutation,
                                                                               self.remaining_budget)
             particle.lbest_fitness = particle.fitness  # Set the personal (local) best fitness
             particle.lbest_permutation = particle.permutation  # Set the personal (local) best permutation
-            particle.velocity = 0  # Set velocity default
+            particle.velocity = [round(self.min_velocity + (self.max_velocity - self.min_velocity) * random.uniform(0, 1), 2) for j in range(self.jobs.quantity)]
             self.population.append(particle)
 
         self.population.sort(key=lambda x: x.fitness, reverse=False)
@@ -339,92 +350,45 @@ class PSO(FsspSolver):
 
                 # Update velocity
                 self.velocity(candidate)
-            # How do I compute the neighbours?
 
             # Set global best
             self.population.sort(key=lambda x: x.fitness, reverse=False)
             self.global_best = self.population[0]
 
+            if self.global_best.fitness < self.global_best_fitness:
+                lg.message(logging.DEBUG, 'Previous best is {}, now updated with new best {}'.format(
+                    self.global_best_fitness, self.global_best.fitness))
+                self.global_best_fitness = self.global_best.fitness
+                self.global_best_permutation = self.global_best.permutation
+                self.fitness_trend.append(self.global_best_fitness)
 
             self.perturb_permutation()
-            # update the velocity and position of all particles
-            # Velocity?
-
 
         lg.message(logging.DEBUG, 'Computational budget remaining is {}'.format(self.remaining_budget))
+
+    def transform_continuous_permutation(self, particle):
+        # Get smallest position value
+        spv = sorted(range(len(particle.permutation_continuous)), key=lambda i: particle.permutation_continuous[i], reverse=False)
+        return spv
 
     def perturb_permutation(self):
         for ci, candidate in enumerate(self.population):
             if ci == 0:
                 continue
-            for ji, ji in enumerate(candidate.permutation):
-                #perturn according to probability with velocaity against candidate 0
-
-
-
+            for ji, j in enumerate(candidate.permutation):
+                candidate.permutation_continuous[ji] += candidate.velocity[ji]
+            print(candidate.permutation_continuous)
+            candidate.permutation = self.transform_continuous_permutation(candidate)
 
     def velocity(self, particle):
-        cognitive = self.c1 * particle.velocity
-        social = self.c2 * (particle.lbest_fitness - particle.fitness)
-        inertia = self.w * (self.global_best.fitness - particle.fitness)
-        velocity = cognitive + social + inertia
-        print('Particle velocity ', velocity)
-        particle.velocity = velocity
+        for pi, p in enumerate(particle.permutation_continuous):
+            exp_inertia = self.weight * particle.velocity[pi]
+            exp_local = self.local_c1 * random.uniform(0, 1) * (particle.lbest_fitness - particle.fitness)
+            exp_global = self.global_c2 * random.uniform(0, 1) * (self.global_best.fitness - particle.fitness)
+            particle.velocity[pi] = exp_inertia + exp_local + exp_global
+            particle.velocity[pi] = self.clamp(particle.velocity[pi])
 
+        print('Particle velocity ', particle.velocity)
 
-    def update_population(self):
-        new_pop = []
-        for i in range(self.number_parents):
-            new_pop.append(self.population[self.candidate_fitness[i][0]])
-
-        # Add children to population
-        new_pop.extend(self.children)
-        return new_pop
-
-    def parent_selection(self):
-        # Fitness proportionate selection (FPS), assigning probabilities to individuals acting as parents depending on their
-        # fitness
-        max_fitness = sum(n for _, n in self.candidate_fitness)
-        fitness_proportionate = [fitness[1] / max_fitness for fitness in self.candidate_fitness]
-
-        pointer_distance = 1 / self.number_parents
-        start_point = random.uniform(0, pointer_distance)
-        points = [start_point + i * pointer_distance for i in range(self.number_parents)]
-        parents = []
-
-        fitness_aggr = 0
-        for fi, fp in enumerate(fitness_proportionate):
-            fitness_aggr += fp
-            for p in points:
-                if fitness_aggr > p:
-                    parents.append(fi)
-                    points.pop(0)
-                    break
-
-        return parents
-
-    def parent_crossover(self):
-        children = []
-        for i in range(self.number_children):
-            crossover_point = random.randint(1, self.jobs.quantity - 1)
-            child = self.population[self.parents[0]][:crossover_point]
-            for c in self.population[self.parents[1]]:
-                if c not in child:
-                    child.append(c)
-            children.append(child)
-
-        return children
-
-    def children_mutate(self):
-        """
-        Swap 2 tasks at random
-        """
-        # Swap positions of the 2 job tasks in the candidate
-        for i in range(self.number_children):
-            # Generate 2 task numbers at random, within range
-            tasks = random.sample(range(0, self.jobs.quantity), 2)
-            self.children[i][tasks[0]], self.children[i][tasks[1]] = \
-                self.children[i][tasks[1]], self.children[i][tasks[0]]
-
-
-
+    def clamp(self, n):
+        return max(min(self.max_velocity, n), self.min_velocity)
