@@ -24,11 +24,13 @@ class Fssp:
     def __init__(self):
         lg.message(logging.INFO, 'Starting flow shop scheduling problem')
         self.sample_runs = 5  # 30
-        self.optimizers = [{'Id': 'SA', 'Enabled': True},
-                           {'Id': 'GA', 'Enabled': True}]
+        self.optimizers = [{'Id': 'SA', 'Enabled': False},
+                           {'Id': 'GA', 'Enabled': False},
+                           {'Id': 'PSO', 'Enabled': True}]
 
         # Simplify declaration of new optimizers with standard stats template that is added to each
-        self.stats_template = {'BestCF': 99999, 'BestCP': [], 'lb_diff_pct': 0, 'ub_diff_pct': 0, 'AvgCts': 0, 'Ft': []}
+        self.stats_template = {'BestCF': 999999999, 'BestCP': [], 'lb_diff_pct': 0, 'ub_diff_pct': 0, 'AvgCts': 0,
+                               'Ft': []}
 
         self.instance_lb = 0  # Approximated best
         self.instance_ub = 0  # Best known minimisation

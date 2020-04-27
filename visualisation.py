@@ -26,9 +26,12 @@ class Visualisation:
     def plot_ft_all_optimizers(optimizers):
         df_ft = pd.DataFrame()
         for opt in optimizers:
-            df_ft[opt['Id']] = opt['Ft']
-        g = sns.relplot(kind="line", data=df_ft)
-        plt.show()
+            if opt['Enabled']:
+                df_ft[opt['Id']] = opt['Ft']
+
+        if not df_ft.empty:
+            g = sns.relplot(kind="line", data=df_ft)
+            plt.show()
 
     def plot_gantt(self, permutation, machines, jobs, solver):
         fitness, _ = solver.calculate_fitness(permutation, 1)  # set machine assigned jobs to best permutation

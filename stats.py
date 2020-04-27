@@ -15,7 +15,10 @@ class Stats:
         alpha = 0.05
         summary_results = OrderedDict()
 
-        for oi, opt in enumerate(optimizers):
+        oi = 0  # Counter for enabled optimizers, with first as ref
+        for opt in optimizers:
+            if not opt['Enabled']:
+                continue
             stdev = round(statistics.pstdev(opt['Ft']), 3)
             mean = round(statistics.mean(opt['Ft']), 3)
             minf = min(opt['Ft'])
@@ -36,8 +39,9 @@ class Stats:
             summary_results[opt['Id']] = {'minf': minf, 'maxf': maxf, 'mean': mean, 'stdev': stdev, 'wts': wts,
                                            'AvgCts': opt['AvgCts'], 'lb_diff_pct': opt['lb_diff_pct'], 'ub_diff_pct':
                                                opt['ub_diff_pct']}
+            oi += 1
 
-        lg.message(logging.INFO, 'Optimiser\tMin Fitness\tMax Fitness\tAvg Fitness\tStDev\tWilcoxon\tLB Diff %\tUB Fiff %\tAvg Cts')
+        lg.message(logging.INFO, 'Optimiser\tMin Fitness\tMax Fitness\tAvg Fitness\tStDev\tWilcoxon\tLB Diff %\tUB Diff %\tAvg Cts')
         for k, v in summary_results.items():
             lg.message(logging.INFO, '{}\t\t{}\t\t{}\t\t{}\t\t{}\t{}\t\t{}\t\t{}\t\t{}'.format(
                 str(k), str(v['minf']), str(v['maxf']), str(v['mean']), str(v['stdev']), str(v['wts']),
