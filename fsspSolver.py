@@ -278,6 +278,7 @@ class GA(FsspSolver):
                 self.children[i][tasks[1]], self.children[i][tasks[0]]
 
 
+
 class PSO(FsspSolver):
     def __init__(self, jobs, machines):
         FsspSolver.__init__(self, jobs, machines)
@@ -293,14 +294,14 @@ class PSO(FsspSolver):
         self.max = 4
         self.velocity_clip = (-4, 4)
 
-        self.weight = 0.72984  # Inertia
-        self.local_c1 = 1.49445
-        self.global_c2 = 1.49445
+        self.weight = 0.5 # Inertia
+        self.local_c1 = 2.1
+        self.global_c2 = 2.1
 
         self.max_velocity = 4
         self.min_velocity = -4
         self.gbest = None
-        self.initial_candidate_size = 5
+        self.initial_candidate_size = 30
         self.global_best_fitness = 999999999
         self.global_best_permutation = []
 
@@ -309,6 +310,168 @@ class PSO(FsspSolver):
         for j in range(self.jobs.quantity):
             candidate.append(round(self.min + (self.max-self.min) * random.uniform(0, 1), 2))
         return candidate
+
+    def solve(self):
+        self.population = []
+        self.remaining_budget = self.comp_budget_total
+        self.fitness_trend = []
+        self.global_best = None
+        self.global_best_fitness = 999999999
+        self.global_best_permutation = []
+
+        self.evolve()
+        return self.global_best_fitness, self.global_best_permutation, self.fitness_trend
+
+    def evolve(self):
+
+        # Iniitalise population
+        for i in range(self.initial_candidate_size):
+            particle = Particle()
+            particle.permutation_continuous = self.generate_solution()  # Generate random permutation
+            particle.permutation = self.transform_continuous_permutation(particle)
+            particle.fitness, self.remaining_budget = self.calculate_fitness(particle.permutation,
+                                                                              self.remaining_budget)
+            particle.prev_fitness = particle.fitness  # Set the personal (local) best fitness
+            particle.prev_permutation = particle.permutation  # Set the personal (local) best permutation
+            particle.prev_permutation_continuous = particle.permutation_continuous  # Set the personal (local) best permutation
+            particle.velocity = [round(self.min_velocity + (self.max_velocity - self.min_velocity) * random.uniform(0, 1), 2) for j in range(self.jobs.quantity)]
+            self.population.append(particle)
+
+        self.population.sort(key=lambda x: x.fitness, reverse=False)
+        self.global_best = self.population[0]
+
+        while self.remaining_budget > 0:
+            self.candidate_fitness = []
+            for ci, candidate in enumerate(self.population):
+                candidate.fitness, self.remaining_budget = self.calculate_fitness(candidate.permutation,
+                                                                                  self.remaining_budget)
+
+                # Evaluate fitness and set personal (local) best
+                if candidate.fitness < candidate.prev_fitness:
+                    candidate.prev_fitness = candidate.fitness
+                    candidate.prev_permutation = candidate.permutation
+                    candidate.prev_permutation_continuous = candidate.permutation_continuous
+
+
+
+            # Set global best
+            self.population.sort(key=lambda x: x.fitness, reverse=False)
+            self.global_best = self.population[0]
+
+            if self.global_best.fitness < self.global_best_fitness:
+                lg.message(logging.DEBUG, 'Previous best is {}, now updated with new best {}'.format(
+                    self.global_best_fitness, self.global_best.fitness))
+                self.global_best_fitness = self.global_best.fitness
+                self.global_best_permutation = self.global_best.permutation
+                self.fitness_trend.append(self.global_best_fitness)
+
+            for ci, candidate in enumerate(self.population):
+                # Update velocity
+                self.velocity(candidate)
+
+            self.perturb_permutation()
+
+        lg.message(logging.DEBUG, 'Computational budget remaining is {}'.format(self.remaining_budget))
+
+    def transform_continuous_permutation(self, particle):
+        # Get smallest position value
+        spv = sorted(range(len(particle.permutation_continuous)), key=lambda i: particle.permutation_continuous[i], reverse=False)
+        return spv
+
+    def perturb_permutation(self):
+        for ci, candidate in enumerate(self.population):
+            if ci == 0:
+                continue
+            for ji, j in enumerate(candidate.permutation):
+                candidate.permutation_continuous[ji] += candidate.velocity[ji]
+            #print(candidate.permutation_continuous)
+            candidate.permutation = self.transform_continuous_permutation(candidate)
+
+    def velocity(self, particle):
+        for pi, p in enumerate(particle.permutation_continuous):
+            # exp_inertia = self.weight + particle.velocity[pi]
+            # exp_local = self.local_c1 * random.uniform(0, 1) * (particle.lbest_fitness - particle.fitness)
+            # exp_global = self.global_c2 * random.uniform(0, 1) * (self.global_best.fitness - particle.fitness)
+            # particle.velocity[pi] = round(exp_inertia + exp_local + exp_global, 3)
+            # particle.velocity[pi] = self.clamp(particle.velocity[pi])
+
+
+            particle.velocity[pi] = (particle.permutation_continuous[pi] + self.weight * (particle.permutation_continuous[pi] - particle.prev_permutation_continuous[pi]) +
+            self.local_c1 * random.random() * (particle.prev_permutation_continuous[pi] - particle.permutation_continuous[pi]) +
+            self.global_c2 * random.random() * (self.global_best.permutation_continuous[pi] - particle.permutation_continuous[pi]))
+
+
+            # xi = p[pi]
+            # inertia = 0.5
+            # xpi is the previous version of the population
+            # pbi is the best of this candidate
+            # nbest is the global best
+            # JP - Need to store an array of the previous
+
+
+    def clamp(self, n):
+        return max(min(self.max_velocity, n), self.min_velocity)
+
+class PSOI(FsspSolver):
+    def __init__(self, jobs, machines):
+        FsspSolver.__init__(self, jobs, machines)
+        self.initial_candidate_size = self.jobs.quantity * 2
+        lg.message(logging.DEBUG, 'Swarm size to {}'.format(self.initial_candidate_size))
+
+        self.current_generation = 1
+        self.candidate_id = 0
+        self.candidate_fitness = []
+        self.population = []
+
+        self.min = 0
+        self.max = 4
+        self.velocity_clip = (-4, 4)
+
+        self.weight = 0.9 # Inertia
+        self.local_c1 = 1.49445
+        self.global_c2 = 0.01
+
+        self.max_velocity = 4
+        self.min_velocity = -4
+        self.gbest = None
+        self.initial_candidate_size = 5
+        self.global_best_fitness = 999999999
+        self.global_best_permutation = []
+
+    @staticmethod
+    def generate_solution(random, args):
+        candidate = []
+        for j in range(args['jobs'].quantity):
+            candidate.append(round(0 + (4-0) * random.uniform(0, 1), 2))
+        return candidate
+
+    @staticmethod
+    def calculate_fit(candidates, args):
+        fitness = []
+        for c in candidates:
+            c = sorted(range(len(c)), key=lambda i: c[i], reverse=False)
+            args['machines'].assigned_jobs = []
+            for i in range(0, args['machines'].quantity):
+                args['machines'].assigned_jobs.append([])
+
+            for ji, j in enumerate(c):
+                start_time = 0
+                end_time = 0
+                for mi, mt in enumerate(args['jobs'].joblist[j]):
+                    if args['machines'].assigned_jobs[mi]:
+                        if mi == 0:
+                            start_time = args['machines'].assigned_jobs[mi][-1][2]
+                        else:
+                            curr_job_prev_task_end = args['machines'].assigned_jobs[mi][-1][2]
+                            prev_job_task_end = args['machines'].assigned_jobs[mi - 1][-1][2]
+                            start_time = max(curr_job_prev_task_end, prev_job_task_end)
+
+                    end_time = start_time + mt
+                    args['machines'].assigned_jobs[mi].append((j, start_time, end_time))
+                    start_time = end_time
+
+            fitness.append(args['machines'].assigned_jobs[-1][-1][2])
+        return fitness
 
     def solve(self):
         self.remaining_budget = self.comp_budget_total
@@ -321,6 +484,49 @@ class PSO(FsspSolver):
         return self.global_best_fitness, self.global_best_permutation, self.fitness_trend
 
     def evolve(self):
+
+        rand = Random()
+        rand.seed(int(time()))
+        prng = Random()
+        prng.seed(time())
+
+        ea = inspyred.swarm.PSO(prng)
+        ea.terminator = inspyred.ec.terminators.evaluation_termination
+        ea.topology = inspyred.swarm.topologies.ring_topology
+        final_pop = ea.evolve(generator=self.generate_solution,
+                              evaluator=self.calculate_fit,
+                              jobs=self.jobs,
+                              machines=self.machines,
+                              pop_size=100,
+                              maximize=False,
+                              max_evaluations=20000,
+                              neighborhood_size=5)
+
+        # Sort and print the best individual, who will be at index 0.
+        final_pop.sort(reverse=True)
+        print(final_pop[0])
+
+        def main(prng=None, display=False):
+            if prng is None:
+                prng = Random()
+                prng.seed(time())
+
+            problem = inspyred.benchmarks.Ackley(2)
+            ea = inspyred.swarm.PSO(prng)
+            ea.terminator = inspyred.ec.terminators.evaluation_termination
+            ea.topology = inspyred.swarm.topologies.ring_topology
+            final_pop = ea.evolve(generator=problem.generator,
+                                  evaluator=problem.evaluator,
+                                  pop_size=100,
+                                  bounder=problem.bounder,
+                                  maximize=problem.maximize,
+                                  max_evaluations=30000,
+                                  neighborhood_size=5)
+
+            if display:
+                best = max(final_pop)
+                print('Best Solution: \n{0}'.format(str(best)))
+            return ea
 
         # Iniitalise population
         for i in range(self.initial_candidate_size):
@@ -348,8 +554,6 @@ class PSO(FsspSolver):
                     candidate.lbest_fitness = candidate.fitness
                     candidate.lbest_permutation = candidate.permutation
 
-                # Update velocity
-                self.velocity(candidate)
 
             # Set global best
             self.population.sort(key=lambda x: x.fitness, reverse=False)
@@ -362,13 +566,18 @@ class PSO(FsspSolver):
                 self.global_best_permutation = self.global_best.permutation
                 self.fitness_trend.append(self.global_best_fitness)
 
+            for ci, candidate in enumerate(self.population):
+                # Update velocity
+                self.velocity(candidate)
+
             self.perturb_permutation()
 
         lg.message(logging.DEBUG, 'Computational budget remaining is {}'.format(self.remaining_budget))
 
-    def transform_continuous_permutation(self, particle):
+    @staticmethod
+    def transform_continuous_permutation(candidate):
         # Get smallest position value
-        spv = sorted(range(len(particle.permutation_continuous)), key=lambda i: particle.permutation_continuous[i], reverse=False)
+        spv = sorted(range(len(candidate)), key=lambda i: candidate[i], reverse=False)
         return spv
 
     def perturb_permutation(self):
@@ -377,7 +586,7 @@ class PSO(FsspSolver):
                 continue
             for ji, j in enumerate(candidate.permutation):
                 candidate.permutation_continuous[ji] += candidate.velocity[ji]
-            print(candidate.permutation_continuous)
+            #print(candidate.permutation_continuous)
             candidate.permutation = self.transform_continuous_permutation(candidate)
 
     def velocity(self, particle):
@@ -385,7 +594,7 @@ class PSO(FsspSolver):
             exp_inertia = self.weight * particle.velocity[pi]
             exp_local = self.local_c1 * random.uniform(0, 1) * (particle.lbest_fitness - particle.fitness)
             exp_global = self.global_c2 * random.uniform(0, 1) * (self.global_best.fitness - particle.fitness)
-            particle.velocity[pi] = exp_inertia + exp_local + exp_global
+            particle.velocity[pi] = round(exp_inertia + exp_local + exp_global, 3)
             particle.velocity[pi] = self.clamp(particle.velocity[pi])
 
         print('Particle velocity ', particle.velocity)
