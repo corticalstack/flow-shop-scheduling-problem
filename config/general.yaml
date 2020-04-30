@@ -1,0 +1,4 @@
+# General configuration
+
+  runs_per_optimizer: 5
+  computational_budget_base: 6000

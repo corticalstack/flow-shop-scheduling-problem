@@ -33,9 +33,7 @@ class Visualisation:
             g = sns.relplot(kind="line", data=df_ft)
             plt.show()
 
-    def plot_gantt(self, permutation, machines, jobs, solver):
-        fitness, _ = solver.calculate_fitness(permutation, 1)  # set machine assigned jobs to best permutation
-
+    def plot_gantt(self, fitness, machines, jobs):
         x_width = fitness
         if jobs.quantity <= 20:
             x_width += 280  # Build in margin for legend
