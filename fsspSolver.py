@@ -1,14 +1,11 @@
 import math
 import random
 random.seed(42)  # Seed the random number generator
-import itertools
 import numpy as np
-from operator import itemgetter
 import logging
-import logger as lg
+from utils import logger as lg
 
 import inspyred
-from inspyred.ec import terminators
 from time import time
 from random import Random
 

@@ -1,5 +1,5 @@
 import logging
-import logger as lg
+from utils import logger as lg
 
 
 class Jobs:

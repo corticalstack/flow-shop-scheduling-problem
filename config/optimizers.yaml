@@ -1,14 +1,17 @@
 # Optimizers configuration
 
   SA:
-    enabled: True
+    enabled: False
     description: Simulated Annealing
     generator: discrete
-  ga:
+    initial_sample: True
+  GA:
     enabled: False
     description: Genetic algorithm with parent selection, mutation, elitism
     generator: discrete
-  pso:
-    enabled: False
+    initial_sample: False
+  PSO:
+    enabled: True
     description: Particle swarm
     generator: continuous
+    initial_sample: False

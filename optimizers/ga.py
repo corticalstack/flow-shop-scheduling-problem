@@ -1,56 +1,61 @@
+from optimizers.optimizer import Optimizer
+from optimizers.particle import Particle
 import logging
 from utils import logger as lg
+import math
+import numpy as np
+import random
+random.seed(42)  # Seed the random number generator
 
 
-class GA:
-    def __init__(self):
+class GA(Optimizer):
+    def __init__(self, cfg, prb):
+        Optimizer.__init__(self, cfg, prb)
+
+        # Optimizer specific
         self.parents = []
         self.children = []
-        self.initial_candidate_size = 5  # JP Test with population twice size of number dimensions
-        lg.message(logging.DEBUG, 'Initial candidate size set to {}'.format(self.initial_candidate_size))
 
         self.number_parents = 3
-        lg.message(logging.DEBUG, 'Number of parents set to {}'.format(self.number_parents))
+        lg.msg(logging.DEBUG, 'Number of parents set to {}'.format(self.number_parents))
 
         self.number_children = 5
-        lg.message(logging.DEBUG, 'Number of children set to {}'.format(self.number_children))
+        lg.msg(logging.DEBUG, 'Number of children set to {}'.format(self.number_children))
 
-        self.current_generation = 1
-        self.candidate_id = 0
-        self.candidate_fitness = []
         self.population = []
-        self.best_cf = 999999999
-        self.best_cp = []
+        self.number_genes = 0
 
-    def solve(self):
-        self.population = []
-        self.remaining_budget = self.comp_budget_total
-        self.fitness_trend = []
-        self.best_cf = 999999999
-        self.best_cp = []
+    def optimize(self):
+        self.prb.budget['remaining'] = self.prb.budget['total']
         self.evolve()
-        return self.best_cf, self.best_cp, self.fitness_trend
+        return self.global_best.fitness, self.global_best.perm, self.fitness_trend
 
     def evolve(self):
-        for i in range(self.initial_candidate_size):
-            particle = Particle()
-            particle.permutation = self.generate_solution()
-            self.population.append(particle)
+        self.initial_candidate_size = len(getattr(self.prb, 'generator_' +
+                                                  self.cfg.settings['opt']['GA']['generator'])()) * 2
+        lg.msg(logging.DEBUG, 'Initial candidate size set to {}'.format(self.initial_candidate_size))
 
-        while self.remaining_budget > 0:
-            self.candidate_fitness = []
+        for i in range(self.initial_candidate_size):
+            candidate = Particle()
+            candidate.perm = getattr(self.prb, 'generator_' + self.cfg.settings['opt']['GA']['generator'])()
+            self.population.append(candidate)
+
+        if len(self.population) > 0:
+            self.number_genes = len(self.population[0].perm)
+
+        while self.prb.budget['remaining'] > 0:
             for ci, candidate in enumerate(self.population):
                 if candidate.fitness == candidate.fitness_default:
-                    candidate.fitness, self.remaining_budget = self.calculate_fitness(candidate.permutation, self.remaining_budget)
+                    candidate.fitness = self.prb.evaluator(candidate.perm)
 
             # Sort population by fitness ascending
             self.population.sort(key=lambda x: x.fitness, reverse=False)
 
-            if self.population[0].fitness < self.best_cf:
-                lg.message(logging.DEBUG, 'Previous best is {}, now updated with new best {}'.format(
-                    self.best_cf, self.population[0].fitness))
-                self.best_cf = self.population[0].fitness
-                self.best_cp = self.population[0].permutation
+            if self.population[0].fitness < self.global_best.fitness:
+                lg.msg(logging.DEBUG, 'Previous best is {}, now updated with new best {}'.format(
+                    self.global_best.fitness, self.population[0].fitness))
+                self.global_best.fitness = self.population[0].fitness
+                self.global_best.perm = self.population[0].perm
                 self.fitness_trend.append(self.population[0].fitness)
 
             self.parents = self.parent_selection()
@@ -61,20 +66,18 @@ class GA:
 
             self.population = self.update_population()
 
-        lg.message(logging.DEBUG, 'Computational budget remaining is {}'.format(self.remaining_budget))
-
     def update_population(self):
         new_pop = []
         for p in self.parents:
             particle = Particle()
             particle.fitness = self.population[p].fitness
-            particle.permutation = self.population[p].permutation
+            particle.perm = self.population[p].perm
             new_pop.append(particle)
 
         # Add children to population
         for c in self.children:
             particle = Particle()
-            particle.permutation = c
+            particle.perm = c
             new_pop.append(particle)
 
         return new_pop
@@ -111,9 +114,9 @@ class GA:
     def parent_crossover(self):
         children = []
         for i in range(self.number_children):
-            crossover_point = random.randint(1, self.jobs.quantity - 1)
-            child = self.population[self.parents[0]].permutation[:crossover_point]
-            for c in self.population[self.parents[1]].permutation:
+            crossover_point = random.randint(1, self.number_genes - 1)
+            child = self.population[self.parents[0]].perm[:crossover_point]
+            for c in self.population[self.parents[1]].perm:
                 if c not in child:
                     child.append(c)
             children.append(child)
@@ -127,6 +130,6 @@ class GA:
         # Swap positions of the 2 job tasks in the candidate
         for i in range(self.number_children):
             # Generate 2 task numbers at random, within range
-            tasks = random.sample(range(0, self.jobs.quantity), 2)
+            tasks = random.sample(range(0, self.number_genes), 2)
             self.children[i][tasks[0]], self.children[i][tasks[1]] = \
                 self.children[i][tasks[1]], self.children[i][tasks[0]]

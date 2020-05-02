@@ -10,32 +10,28 @@ import math
 
 class Visualisation:
     def __init__(self):
-        self.job_colour = {0: 'tab:blue', 1: 'tab:orange', 2: 'tab:green', 3: 'tab:red', 4: 'tab:purple',
-                           5: 'tab:brown', 6: 'tab:pink', 7: 'tab:grey', 8: 'tab:olive', 9: 'tab:cyan', 10: 'tab:cyan',
-                           11: 'tab:blue', 12: 'tab:orange', 13: 'tab:green', 14: 'tab:red', 15: 'tab:purple',
-                           16: 'tab:brown', 17: 'tab:pink', 18: 'tab:grey', 19: 'tab:olive', 20: 'tab:cyan', 21: 'tab:cyan'
-                           }
+        pass
 
     @staticmethod
-    def plot_ft(trend):
+    def fitness_trend(trend):
         df_ft = pd.DataFrame(trend)
         g = sns.relplot(kind="line", data=df_ft)
         plt.show()
 
     @staticmethod
-    def plot_ft_all_optimizers(optimizers):
+    def fitness_trend_all_optimizers(optimizers):
         df_ft = pd.DataFrame()
         for opt in optimizers:
-            if opt['Enabled']:
-                df_ft[opt['Id']] = opt['Ft']
+            if optimizers[opt]['enabled']:
+                df_ft[opt] = optimizers[opt]['ft']
 
         if not df_ft.empty:
             g = sns.relplot(kind="line", data=df_ft)
             plt.show()
 
-    def plot_gantt(self, fitness, machines, jobs):
+    def gantt_schedule(self, fitness, machines, jobs):
         x_width = fitness
-        if jobs.quantity <= 20:
+        if jobs['quantity'] <= 20:
             x_width += 280  # Build in margin for legend
 
         y_pos_max = 0
@@ -47,16 +43,16 @@ class Visualisation:
 
         # Generate colour map of distinguishable colours
         distinct_colours = 5
-        shades = int(jobs.quantity / distinct_colours)
+        shades = int(jobs['quantity'] / distinct_colours)
         job_cmap = self.generate_colormap(shades * distinct_colours)
 
         fig, ax = plt.subplots()
 
-        for mi, m in enumerate(machines.assigned_jobs):
+        for mi, m in enumerate(machines['assigned_jobs']):
             y_pos_max = 0
             y_pos_min = 30000
             for ji, j in enumerate(m):
-                y_machine_job_pos = (((mi + 1) * (jobs.quantity * job_bar_height)) + 100 * mi) - (ji * job_bar_height)
+                y_machine_job_pos = (((mi + 1) * (jobs['quantity'] * job_bar_height)) + 100 * mi) - (ji * job_bar_height)
                 if y_machine_job_pos > y_pos_max:
                     y_pos_max = y_machine_job_pos
                 elif y_machine_job_pos < y_pos_min:
@@ -94,7 +90,7 @@ class Visualisation:
         ax.legend(loc=1, prop=font, numpoints=1)
 
         # Disable legend when much longer than charted machine loading
-        if jobs.quantity > 20:
+        if jobs['quantity'] > 20:
             ax.legend().set_visible(False)
 
         plt.show()

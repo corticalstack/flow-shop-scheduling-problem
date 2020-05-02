@@ -1,14 +1,14 @@
 import logging
 
 
-def message(l_type, msg):
+def msg(l_type, m):
     """
     Log message and print to console if classified as info type
     """
     if l_type == logging.INFO:
-        logging.info(msg)
-        print(msg)
+        logging.info(m)
+        print(m)
     elif l_type == logging.WARNING:
-        logging.warning(msg)
+        logging.warning(m)
     elif l_type == logging.DEBUG:
-        logging.debug(msg)
+        logging.debug(m)

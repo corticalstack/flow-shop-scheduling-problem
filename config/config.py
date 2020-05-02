@@ -5,10 +5,10 @@ class Config:
     def __init__(self):
         self.settings = {}
         self.files = {
-            'general': 'config/general.yaml',
-            'problems': 'config/problems.yaml',
-            'optimizers': 'config/optimizers.yaml',
-            'benchmarks': 'config/benchmarks.yaml'
+            'gen': 'config/general.yaml',
+            'prb': 'config/problems.yaml',
+            'opt': 'config/optimizers.yaml',
+            'ben': 'config/benchmarks.yaml'
         }
 
         self.get_config()
